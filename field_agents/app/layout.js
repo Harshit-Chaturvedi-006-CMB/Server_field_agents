@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { UserProvider } from "./app/context/UserContext";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
@@ -22,8 +23,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <Navbar/>
-        {children}
+         <UserProvider>
+          <Navbar />
+          {children}
+        </UserProvider>
         <Footer/>
       </body>
     </html>
