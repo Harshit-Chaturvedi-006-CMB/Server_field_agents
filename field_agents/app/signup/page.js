@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import './signup.css'
+import "./signup.css";
 
 export default function SignupPage() {
   const [username, setUsername] = useState("");
@@ -37,12 +37,12 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="login-container">
-      <form className="login-form" onSubmit={handleSignup}>
-        <h2 className="login-title">Sign Up</h2>
+    <div className="signup-container">
+      <form className="signup-form" onSubmit={handleSignup}>
+        <h2 className="signup-title">Sign Up</h2>
         <input
           type="text"
-          className="login-input"
+          className="signup-input"
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -50,7 +50,7 @@ export default function SignupPage() {
         />
         <input
           type="email"
-          className="login-input"
+          className="signup-input"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -58,13 +58,13 @@ export default function SignupPage() {
         />
         <input
           type="password"
-          className="login-input"
+          className="signup-input"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button type="submit" className="login-btn" disabled={loading}>
+        <button type="submit" className="signup-btn" disabled={loading}>
           {loading ? "Signing Up..." : "Sign Up"}
         </button>
         {message && <p style={{ color: "orange", marginTop: 10 }}>{message}</p>}

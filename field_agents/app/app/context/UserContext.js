@@ -5,15 +5,15 @@ const UserContext = createContext(null);
 
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [mounted, setMounted] = useState(false); // NEW
 
   useEffect(() => {
-    // Only runs on client
     const stored = window.localStorage.getItem("fieldAgentsUser");
     if (stored) setUser(JSON.parse(stored));
+    setMounted(true); // signal that we finished loading user
   }, []);
 
   useEffect(() => {
-    // When user changes, update localStorage
     if (user) {
       window.localStorage.setItem("fieldAgentsUser", JSON.stringify(user));
     } else {
@@ -22,7 +22,7 @@ export function UserProvider({ children }) {
   }, [user]);
 
   return (
-    <UserContext.Provider value={{ user, setUser }}>
+    <UserContext.Provider value={{ user, setUser, mounted }}>
       {children}
     </UserContext.Provider>
   );

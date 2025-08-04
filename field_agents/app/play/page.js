@@ -2,6 +2,9 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/app/context/UserContext";
+import dynamic from "next/dynamic";
+
+const Game = dynamic(() => import("@/components/Game"), { ssr: false });
 // import Game from "@/components/Game"; // Uncomment when ready
 import "./PlayPage.css"; // We'll define simple CSS in this file for animations
 
@@ -38,11 +41,13 @@ export default function PlayPage() {
           </div>
         </div>
       ) : (
+        
         // Render your game component here
-        // <Game />
+        
+       <>
         <div style={{ color: "#00bfff", fontSize: "1.5rem", textAlign: "center", marginTop: "2rem" }}>
-          Game would render here…
-        </div>
+           <Game />
+        </div></>
       )}
     </main>
   );
