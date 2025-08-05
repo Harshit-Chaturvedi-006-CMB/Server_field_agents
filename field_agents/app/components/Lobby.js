@@ -5,9 +5,9 @@ import { io } from 'socket.io-client';
 import { nanoid } from 'nanoid';
 import dynamic from 'next/dynamic';
 
-const PhaseMapInner = dynamic(() => import('./PhasorMap.js'), { ssr: false });
+// const PhaseMapInner = dynamic(() => import('./PhasorMap.js'), { ssr: false });
 
-const SOCKET_URL = 'http://localhost:4000'; // your deployed server in production
+const SOCKET_URL = 'http://192.168.1.4:4000'; // your deployed server in production
 
 export default function Lobby() {
   const [lobbyCode, setLobbyCode] = useState('');
@@ -18,32 +18,37 @@ export default function Lobby() {
     ? (localStorage.getItem('fieldAgentsUser') || 'Agent')
     : 'Agent';
 
-    useEffect(() => {
-  let socket = io(SOCKET_URL);
-  let watcherId;
+    const myPlayerId = typeof window !== 'undefined' 
+  ? localStorage.getItem('fieldAgentsId') || null 
+  : null;
 
-  if ("geolocation" in navigator) {
-    watcherId = navigator.geolocation.watchPosition(
-      (position) => {
-        socket.emit('playerMove', {
-          lobbyCode,
-          player: { id: myPlayerId, name: username }, // include your unique playerId!
-          coordinates: {
-            lat: position.coords.latitude,
-            long: position.coords.longitude,
-          },
-        });
-      },
-      (error) => console.error(error),
-      { enableHighAccuracy: true }
-    );
-  }
 
-  return () => {
-    if (watcherId) navigator.geolocation.clearWatch(watcherId);
-    socket.disconnect();
-  };
-}, [lobbyCode, myPlayerId, username]);
+//     useEffect(() => {
+//   let socket = io(SOCKET_URL);
+//   let watcherId;
+
+//   if ("geolocation" in navigator) {
+//     watcherId = navigator.geolocation.watchPosition(
+//       (position) => {
+//         socket.emit('playerMove', {
+//           lobbyCode,
+//           player: { id: myPlayerId, name: username }, // include your unique playerId!
+//           coordinates: {
+//             lat: position.coords.latitude,
+//             long: position.coords.longitude,
+//           },
+//         });
+//       },
+//       (error) => console.error(error),
+//       { enableHighAccuracy: true }
+//     );
+//   }
+
+//   return () => {
+//     if (watcherId) navigator.geolocation.clearWatch(watcherId);
+//     socket.disconnect();
+//   };
+// }, [lobbyCode, myPlayerId, username]);
 
   useEffect(() => {
     // Generate a new code on mount
@@ -99,7 +104,7 @@ export default function Lobby() {
       >
         Start Game
       </button>
-      <PhaseMap/>
+      {/* <PhaseMap/> */}
       {started && (
         <div style={styles.startedPanel}>
           <h2>Game Started!</h2>

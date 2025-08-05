@@ -1,15 +1,68 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import PhaserGame from '@/components/PhaserGame'; // Adjust path if needed
+import PhaserGame from '@/components/PhaserGame';
+import { io } from 'socket.io-client';
+
+const SOCKET_URL = 'http://192.168.1.4:4000'; // Update with your server/network IP and port
 
 export default function Play() {
   const [loading, setLoading] = useState(true);
+  const [socket, setSocket] = useState(null);
+  // Get player/lobby info (adapt if you use a different method)
+  const username =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('fieldAgentsUser') || 'Agent'
+      : 'Agent';
+  const playerId =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('fieldAgentsId') || null
+      : null;
+  const lobbyCode =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('fieldAgentsLobby') || ''
+      : '';
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2800);
     return () => clearTimeout(timer);
   }, []);
+
+  // -- SOCKET AND GEOLOCATION LOGIC --
+  useEffect(() => {
+    if (loading) return;
+    // Only run after Phaser game starts
+
+    const socketInstance = io(SOCKET_URL, { transports: ['websocket'] });
+    setSocket(socketInstance);
+
+    socketInstance.on('connect', () => {
+      console.log('Connected to socket server');
+    });
+
+    let watcherId;
+    if ('geolocation' in navigator) {
+      watcherId = navigator.geolocation.watchPosition(
+        (position) => {
+          socketInstance.emit('playerMove', {
+            lobbyCode,
+            player: { id: playerId, name: username },
+            coordinates: {
+              lat: position.coords.latitude,
+              long: position.coords.longitude,
+            },
+          });
+        },
+        (error) => console.error('Geolocation error:', error),
+        { enableHighAccuracy: true }
+      );
+    }
+
+    return () => {
+      if (watcherId) navigator.geolocation.clearWatch(watcherId);
+      socketInstance.disconnect();
+    };
+  }, [loading, lobbyCode, playerId, username]);
 
   return (
     <div
@@ -24,14 +77,12 @@ export default function Play() {
         color: '#fff'
       }}
     >
-      {/* Animated spinner global styles */}
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
       `}</style>
 
-      {/* Top welcome */}
       <h1 style={{ marginTop: 64, fontSize: 36, letterSpacing: 2 }}>
         Welcome, Agent!
       </h1>
@@ -60,7 +111,7 @@ export default function Play() {
         </div>
       ) : (
         <div style={{ marginTop: 40, width: '100%' }}>
-          <PhaserGame  />
+          <PhaserGame />
         </div>
       )}
     </div>
