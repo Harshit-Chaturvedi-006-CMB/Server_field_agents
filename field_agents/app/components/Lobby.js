@@ -1,157 +1,186 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
+import { nanoid } from 'nanoid';
+import dynamic from 'next/dynamic';
 
-const roleTasksMap = {
-  scientist: ['Analyze samples', 'Run experiments', 'Collect data'],
-  explorer: ['Scout area', 'Map location', 'Survey surroundings'],
-  deviation: ['Hacking systems', 'Bypass security', 'Data extraction'],
-  engineer: ['Repair equipment', 'Maintain systems', 'Build infrastructure'],
-  Kira: ['Lead mission', 'Coordinate team', 'Strategize plan'],
-};
+const PhaseMapInner = dynamic(() => import('./PhasorMap.js'), { ssr: false });
 
-const roles = ['scientist', 'explorer', 'deviation', 'engineer'];
-
-function getRandomTasks(role) {
-  const tasks = roleTasksMap[role] || [];
-  // For example assign 2 random tasks from role tasks
-  const shuffled = tasks.sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, 2);
-}
-
-function generatePlayerData(playerNames) {
-  // Assign one Kira among all players, rest random roles
-  const kiraIndex = Math.floor(Math.random() * playerNames.length);
-
-  return playerNames.map((name, i) => {
-    const role = i === kiraIndex ? 'Kira' : roles[Math.floor(Math.random() * roles.length)];
-    return {
-      playerName: name,
-      role,
-      tasks: getRandomTasks(role),
-      coordinates: { lat: 0, long: 0 }, // initial dummy coords, replace/live-update as needed
-    };
-  });
-}
+const SOCKET_URL = 'http://localhost:4000'; // your deployed server in production
 
 export default function Lobby() {
-  const [loading, setLoading] = useState(true);
-  const [gameData, setGameData] = useState(null);
+  const [lobbyCode, setLobbyCode] = useState('');
+  const [players, setPlayers] = useState([]);
+  const [started, setStarted] = useState(false);
 
-  // Simulate some player names for demo 
-  const players = useRef([
-    'Alice',
-    'Bob',
-    'Charlie',
-    'Diana',
-    'Eve',
-  ]);
+  const username = typeof window !== 'undefined'
+    ? (localStorage.getItem('fieldAgentsUser') || 'Agent')
+    : 'Agent';
 
-  useEffect(() => {
-    // Simulate backend data creation delay
-    const timer = setTimeout(() => {
-      const playerData = generatePlayerData(players.current);
-      const newGameData = {
-        timestamp: new Date().toISOString(),
-        playerCount: playerData.length,
-        playerData,
-      };
-      setGameData(newGameData);
-      setLoading(false);
-    }, 3000);
+    useEffect(() => {
+  let socket = io(SOCKET_URL);
+  let watcherId;
 
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (loading || !gameData) {
-    return (
-      <div style={styles.loadingContainer}>
-        <h2 style={{ fontSize: 28, marginBottom: 10 }}>Sit Tight</h2>
-        <p style={{ fontSize: 20, color: '#aaa' }}>The Lobby Is Under Creation</p>
-        <LoadingSpinner />
-      </div>
+  if ("geolocation" in navigator) {
+    watcherId = navigator.geolocation.watchPosition(
+      (position) => {
+        socket.emit('playerMove', {
+          lobbyCode,
+          player: { id: myPlayerId, name: username }, // include your unique playerId!
+          coordinates: {
+            lat: position.coords.latitude,
+            long: position.coords.longitude,
+          },
+        });
+      },
+      (error) => console.error(error),
+      { enableHighAccuracy: true }
     );
   }
 
-  return (
-    <div style={styles.lobbyContainer}>
-      <h1 style={{ fontSize: 32, marginBottom: 24 }}>Lobby</h1>
-      <p style={{ marginBottom: 8 }}>
-        <strong>Player Count:</strong> {gameData.playerCount}
-      </p>
+  return () => {
+    if (watcherId) navigator.geolocation.clearWatch(watcherId);
+    socket.disconnect();
+  };
+}, [lobbyCode, myPlayerId, username]);
 
-      <table style={styles.playerTable}>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Role</th>
-            <th>Tasks</th>
-            <th>Coordinates</th>
-          </tr>
-        </thead>
-        <tbody>
-          {gameData.playerData.map(({ playerName, role, tasks, coordinates }, i) => (
-            <tr key={i}>
-              <td>{playerName}</td>
-              <td>{role}</td>
-              <td>{tasks.join(', ')}</td>
-              <td>{`${coordinates.lat}, ${coordinates.long}`}</td>
-            </tr>
+  useEffect(() => {
+    // Generate a new code on mount
+    const code = nanoid(6).toUpperCase();
+    setLobbyCode(code);
+
+    const socket = io(SOCKET_URL, { transports: ['websocket'] });
+
+    socket.on('connect', () => {
+      socket.emit('createLobby', { lobbyCode: code, player: { name: username } });
+    });
+
+    socket.on('lobbyUpdate', (lobby) => {
+      setPlayers(lobby.players || []);
+    });
+
+    // Clean up socket on unmount
+    return () => {
+      socket.emit('leaveLobby', { lobbyCode: code, playerId: username });
+      socket.disconnect();
+    };
+  }, [username]);
+
+  return (
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <h1>Lobby</h1>
+        <div style={styles.playerCount}>{players.length} / 10</div>
+      </header>
+
+      <div style={styles.lobbyCodeContainer}>
+        <span style={styles.lobbyCodeLabel}>Lobby Code:</span>
+        <span style={styles.lobbyCode}>{lobbyCode}</span>
+      </div>
+
+      <div style={styles.infoBox}>
+        <div style={{ marginBottom: 20 }}>Share this code with your friends so they can join!</div>
+        <ul style={styles.playerList}>
+          {players.map((p, i) => (
+            <li key={i} style={styles.playerItem}>{(JSON.parse(p.name).username)}</li>
           ))}
-        </tbody>
-      </table>
+        </ul>
+      </div>
+
+      <button
+        style={{
+          ...styles.startButton,
+          opacity: players.length < 2 ? 0.5 : 1,
+          cursor: players.length < 2 ? 'not-allowed' : 'pointer',
+        }}
+        disabled={players.length < 2}
+        onClick={() => setStarted(true)}
+      >
+        Start Game
+      </button>
+      <PhaseMap/>
+      {started && (
+        <div style={styles.startedPanel}>
+          <h2>Game Started!</h2>
+        </div>
+      )}
     </div>
   );
 }
 
-function LoadingSpinner() {
-  return (
-    <>
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          border: '6px solid #4fa1f2',
-          borderTop: '6px solid #293e6a',
-          borderRadius: '50%',
-          animation: 'spin 1.1s linear infinite',
-          marginTop: 25,
-        }}
-      />
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </>
-  );
-}
-
 const styles = {
-  loadingContainer: {
+  container: {
     minHeight: '100vh',
     background: '#10151a',
     color: '#eee',
-    fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+    padding: '30px 5vw',
+    boxSizing: 'border-box',
+    width: '100vw',
+    maxWidth: '100%',
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+  },
+  header: {
     display: 'flex',
-    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 40
+  },
+  playerCount: {
+    backgroundColor: '#222e44',
+    color: '#7ecfff',
+    padding: '8px 20px',
+    borderRadius: 18,
+    fontWeight: '600',
+    fontSize: 18,
+    letterSpacing: 2
+  },
+  lobbyCodeContainer: {
+    display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 40
   },
-  lobbyContainer: {
-    minHeight: '100vh',
-    background: '#10151a',
-    color: '#eee',
-    fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+  lobbyCodeLabel: { fontSize: 20, marginRight: 10 },
+  lobbyCode: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    letterSpacing: 8,
+    backgroundColor: '#2a3042',
+    padding: '14px 36px',
+    borderRadius: 12,
+    fontFamily: "'Courier New', Courier, monospace"
+  },
+  infoBox: {
+    background: '#131b2b',
+    borderRadius: 10,
     padding: 24,
+    marginBottom: 32
   },
-  playerTable: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: 18,
+  playerList: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0
   },
-  playerTableThTd: {
-    borderBottom: '1px solid #444',
-    padding: '12px 8px',
+  playerItem: { padding: '8px 0', fontSize: 19, borderBottom: '1px solid #21304b' },
+  startButton: {
+    display: 'block',
+    fontSize: 22,
+    fontWeight: 'bold',
+    padding: '14px 56px',
+    borderRadius: 32,
+    backgroundColor: '#4fa1f2',
+    color: '#fff',
+    border: 'none',
+    margin: '46px auto 0 auto',
+    userSelect: 'none',
+    transition: 'background 0.2s'
   },
+  startedPanel: {
+    marginTop: 50,
+    textAlign: 'center',
+    background: '#178277',
+    padding: 36,
+    borderRadius: 24
+  }
 };

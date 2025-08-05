@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Lobby from './Lobby';
-// import Jlobby from './gamepages/Jlobby';
+import Joinlobby from './Jlobby';
 
 
 // For demo, get user name (could be from auth or localStorage in real app)
@@ -98,7 +98,7 @@ export default function GamePhasor() {
           </div>
         )}
         {view === 'create' && <Lobby />}
-        {view === 'join' && <Jlobby />}
+        {view === 'join' && <Joinlobby />}
       </div>
     </div>
   );
