@@ -1,54 +1,68 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useUser } from "@/app/context/UserContext";
-import dynamic from "next/dynamic";
+'use client';
 
-const Game = dynamic(() => import("@/components/Game"), { ssr: false });
-// import Game from "@/components/Game"; // Uncomment when ready
-import "./PlayPage.css"; // We'll define simple CSS in this file for animations
+import { useState, useEffect } from 'react';
+import PhaserGame from '@/components/PhaserGame'; // Adjust path if needed
 
-export default function PlayPage() {
-  const { user } = useUser();
-  const router = useRouter();
-  const [showWelcome, setShowWelcome] = useState(true);
+export default function Play() {
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
-      router.replace("/login");
-    }
-  }, [user, router]);
-
-  useEffect(() => {
-    if (user) {
-      // Show welcome screen for 3 seconds before hiding and showing game
-      const timer = setTimeout(() => setShowWelcome(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [user]);
-
-  if (!user) return null; // Wait for redirect
+    const timer = setTimeout(() => setLoading(false), 2800);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <main className="play-container">
-      {showWelcome ? (
-        <div className="welcome-wrapper">
-          <h1 className="welcome-text animate-fade-in">
-            Welcome to the Arena, <span className="player-name">{user.username}</span>!
-          </h1>
-          <div className="loading-dots">
-            <span>.</span><span>.</span><span>.</span>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'radial-gradient(circle at 50% 0%, #203055 0%, #06080d 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        fontFamily: 'Segoe UI, Arial, sans-serif',
+        color: '#fff'
+      }}
+    >
+      {/* Animated spinner global styles */}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {/* Top welcome */}
+      <h1 style={{ marginTop: 64, fontSize: 36, letterSpacing: 2 }}>
+        Welcome, Agent!
+      </h1>
+      {loading ? (
+        <div
+          style={{
+            marginTop: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}
+        >
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              border: '8px solid #4fa1f2',
+              borderTop: '8px solid #293e6a',
+              borderRadius: '50%',
+              animation: 'spin 1.1s linear infinite'
+            }}
+          />
+          <div style={{ marginTop: 30, fontSize: 20, letterSpacing: 2 }}>
+            Initializing mission system...
           </div>
         </div>
       ) : (
-        
-        // Render your game component here
-        
-       <>
-        <div style={{ color: "#00bfff", fontSize: "1.5rem", textAlign: "center", marginTop: "2rem" }}>
-           <Game />
-        </div></>
+        <div style={{ marginTop: 40, width: '100%' }}>
+          <PhaserGame  />
+        </div>
       )}
-    </main>
+    </div>
   );
 }
