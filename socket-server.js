@@ -69,22 +69,34 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Start Game: Emit Roles and after delay emit goToGame
-  socket.on('startGame', ({ lobbyCode }) => {
-    const lobby = lobbies[lobbyCode];
-    if (lobby) {
-      // Assign default role if missing
-      lobby.players.forEach(p => { if (!p.role) p.role = 'Agent'; });
+ socket.on('startGame', ({ lobbyCode }) => {
+  const lobby = lobbies[lobbyCode];
+  if (lobby) {
+    // --- Assign roles and tasks (can be random or by logic) ---
+    const roles = ['Leader', 'Agent', 'Spy', 'Medic']; // Example roles
+    const tasks = ['Find the code', 'Secure the vault', 'Intercept the spy', 'Heal a teammate'];
 
-      io.to(lobbyCode).emit('revealRoles', {
-        roles: lobby.players.map(p => ({ id: p.id, role: p.role })),
-      });
+    // Shuffle roles/tasks or assign however you want
+    lobby.players.forEach((p, i) => {
+      p.role = roles[i % roles.length];
+      p.task = tasks[i % tasks.length];
+    });
 
-      setTimeout(() => {
-        io.to(lobbyCode).emit('goToGame');
-      }, 3000);
-    }
-  });
+    // --- Emit roles and tasks to all in the lobby ---
+    io.to(lobbyCode).emit('revealRoles', {
+      roles: lobby.players.map(p => ({
+        id: p.id,
+        role: p.role,
+        task: p.task
+      })),
+    });
+
+    // Proceed as before to go to game after reveal
+    setTimeout(() => {
+      io.to(lobbyCode).emit('goToGame');
+    }, 3000);
+  }
+});
 
   // Reveal Done: Track reveal progress & notify when all done
   socket.on('revealDone', ({ lobbyCode }) => {
