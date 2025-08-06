@@ -50,6 +50,35 @@ io.on('connection', (socket) => {
   }
 });
 
+socket.on('startGame', ({ lobbyCode }) => {
+  const lobby = lobbies[lobbyCode];
+  if (lobby) {
+    // Emit roles to reveal
+    io.to(lobbyCode).emit('revealRoles', {
+      roles: lobby.players.map(p => ({ id: p.id, role: p.role })),
+    });
+
+    // After 3 seconds, emit goToGame
+    setTimeout(() => {
+      io.to(lobbyCode).emit('goToGame');
+    }, 3000);
+  }
+});
+
+
+// When reveal animation is over on each client, they notify server, server tracks and syncs transition to game
+let revealCount = {}; // { lobbyCode: number }
+io.on('connection', (socket) => {
+  socket.on('revealDone', ({ lobbyCode }) => {
+    revealCount[lobbyCode] = (revealCount[lobbyCode] || 0) + 1;
+    if (revealCount[lobbyCode] === lobbies[lobbyCode].players.length) {
+      // All players finished reveal; let everyone proceed
+      io.to(lobbyCode).emit('goToGame');
+      revealCount[lobbyCode] = 0; // Reset for next game
+    }
+  });
+});
+
 
  socket.on("chatMessage", (msg) => {
     if (!msg.lobbyCode) return;
