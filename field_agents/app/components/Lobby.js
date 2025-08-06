@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { nanoid } from 'nanoid';
 import dynamic from 'next/dynamic';
+import ChatBox from './ChatBox';
 
 // const PhaseMapInner = dynamic(() => import('./PhasorMap.js'), { ssr: false });
 
-const SOCKET_URL = 'http://192.168.1.4:4000'; // your deployed server in production
+const SOCKET_URL = 'https://server-field-agents.onrender.com'; // your deployed server in production
 
 export default function Lobby() {
   const [lobbyCode, setLobbyCode] = useState('');
@@ -23,32 +24,40 @@ export default function Lobby() {
   : null;
 
 
-//     useEffect(() => {
-//   let socket = io(SOCKET_URL);
-//   let watcherId;
+useEffect(() => {
+    if (!lobbyCode || !myPlayerId || !username) return;
 
-//   if ("geolocation" in navigator) {
-//     watcherId = navigator.geolocation.watchPosition(
-//       (position) => {
-//         socket.emit('playerMove', {
-//           lobbyCode,
-//           player: { id: myPlayerId, name: username }, // include your unique playerId!
-//           coordinates: {
-//             lat: position.coords.latitude,
-//             long: position.coords.longitude,
-//           },
-//         });
-//       },
-//       (error) => console.error(error),
-//       { enableHighAccuracy: true }
-//     );
-//   }
+    const socket = io(SOCKET_URL, { transports: ['websocket'] });
 
-//   return () => {
-//     if (watcherId) navigator.geolocation.clearWatch(watcherId);
-//     socket.disconnect();
-//   };
-// }, [lobbyCode, myPlayerId, username]);
+    // Listen for player movement updates and log in browser
+    socket.on('playerMoved', (data) => {
+      console.log(`[From playerMoved] Player ${data.player.name} moved to:`, data.coordinates);
+    });
+
+    // Start watching geolocation and emit movement
+    let watcherId;
+    if ("geolocation" in navigator) {
+      watcherId = navigator.geolocation.watchPosition(
+        (position) => {
+          socket.emit('playerMove', {
+            lobbyCode,
+            player: { id: myPlayerId, name: username },
+            coordinates: {
+              lat: position.coords.latitude,
+              long: position.coords.longitude,
+            },
+          });
+        },
+        (error) => console.error(error),
+        { enableHighAccuracy: true }
+      );
+    }
+
+    return () => {
+      if (watcherId) navigator.geolocation.clearWatch(watcherId);
+      socket.disconnect();
+    };
+  }, [lobbyCode, myPlayerId, username]);
 
   useEffect(() => {
     // Generate a new code on mount
@@ -65,6 +74,36 @@ export default function Lobby() {
       setPlayers(lobby.players || []);
     });
 
+    socket.on("chatMessage", (msg) => {
+  // Add msg to your messages array/state:
+  setMessages((prev) => [...prev, msg]);
+});
+
+
+const sendMessage = (input) => {
+  socket.current.emit("chatMessage", {
+    lobbyCode,
+    sender: { name: username, id: myPlayerId },
+    text: input,
+    timestamp: Date.now(),
+  });
+  // Optionally add optimistically to messages
+  setMessages(prev => [...prev, {
+    lobbyCode,
+    sender: { name: username, id: myPlayerId },
+    text: input,
+    timestamp: Date.now(),
+  }]);
+};
+
+     socket.on("playerMoved", (data) => {
+      // This shows the player's name and their new coordinates in YOUR browser
+      console.log(
+        `[From playerMoved] Player ${data.player.name} moved to:`,
+        data.coordinates
+      );
+    });
+
     // Clean up socket on unmount
     return () => {
       socket.emit('leaveLobby', { lobbyCode: code, playerId: username });
@@ -78,6 +117,7 @@ export default function Lobby() {
         <h1>Lobby</h1>
         <div style={styles.playerCount}>{players.length} / 10</div>
       </header>
+      <ChatBox lobbyCode={lobbyCode} username={username} playerId={myPlayerId} />
 
       <div style={styles.lobbyCodeContainer}>
         <span style={styles.lobbyCodeLabel}>Lobby Code:</span>

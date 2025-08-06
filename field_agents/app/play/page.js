@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import PhaserGame from '@/components/PhaserGame';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://192.168.1.4:4000'; // Update with your server/network IP and port
+const SOCKET_URL = 'https://server-field-agents.onrender.com'; // Update with your server/network IP and port';
 
 export default function Play() {
   const [loading, setLoading] = useState(true);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import ChatBox from './ChatBox';
 
 const SOCKET_URL = 'http://localhost:4000'; // use your server URL in production
 
@@ -52,6 +53,8 @@ export default function Joinlobby() {
           <h1>Lobby</h1>
           <div style={styles.playerCount}>{players.length} / 10</div>
         </header>
+              <ChatBox lobbyCode={lobbyCode} username={username} playerId={myPlayerId} />
+        
         <div style={styles.lobbyCodeContainer}>
           <span style={styles.lobbyCodeLabel}>Lobby Code:</span>
           <span style={styles.lobbyCode}>{joinedLobbyCode}</span>

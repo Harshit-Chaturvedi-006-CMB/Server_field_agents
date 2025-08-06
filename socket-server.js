@@ -3,6 +3,8 @@ const io = new Server(4000, { cors: { origin: "*" } }); // This binds to 0.0.0.0
 
 
 const lobbies = {}; // Map lobbyCode → { players: [...] }
+const lobbyMessages = {}; // { lobbyCode: [messages] }
+
 
 io.on('connection', (socket) => {
   socket.on('createLobby', ({ lobbyCode, player }) => {
@@ -20,18 +22,53 @@ io.on('connection', (socket) => {
   });
 
 
-  socket.on('playerMove', ({ lobbyCode, player, coordinates }) => {
+ socket.on('playerMove', ({ lobbyCode, player, coordinates }) => {
   const lobby = lobbies[lobbyCode];
   if (lobby) {
     const idx = lobby.players.findIndex(p => p.id === player.id);
     if (idx !== -1) {
       lobby.players[idx].coordinates = coordinates;
-      
+
+      // Emit only the moved player's data, if you want per-player logs
+      io.to(lobbyCode).emit('playerMoved', {
+        player: lobby.players[idx],
+        coordinates
+      });
+
+      // Optional: or broadcast the whole updated list
+      io.to(lobbyCode).emit('lobbyUpdate', lobby);
+
+      // For server debug, log all player coordinates
+      console.log(
+        lobby.players.map(p => ({
+          id: p.id,
+          name: p.name,
+          coordinates: p.coordinates
+        }))
+      );
     }
-    io.to(lobbyCode).emit('lobbyUpdate', lobby); // send updated player list to all clients
-    console.log(lobby.players.coordinates);
   }
 });
+
+
+ socket.on("chatMessage", (msg) => {
+    if (!msg.lobbyCode) return;
+    // Save to messages array (optional: limit message array length per lobby)
+    lobbyMessages[msg.lobbyCode] = (lobbyMessages[msg.lobbyCode] || []).concat([
+      {
+        sender: msg.sender,
+        text: msg.text,
+        timestamp: msg.timestamp || Date.now()
+      }
+    ]);
+    // Broadcast new message
+    io.to(msg.lobbyCode).emit("chatMessage", msg);
+  });
+
+  // Serve previous messages on join
+  socket.on("getPreviousMessages", ({ lobbyCode }) => {
+    socket.emit("previousMessages", lobbyMessages[lobbyCode] || []);
+  });
 
 
   socket.on('joinLobby', ({ lobbyCode, player }) => {
