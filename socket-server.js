@@ -1,27 +1,49 @@
+// socket-server.js
 const { Server } = require('socket.io');
-const io = new Server(4000, { cors: { origin: "*" } }); // This binds to 0.0.0.0 by default
+const io = new Server(4000, { cors: { origin: "*" } }); // Adjust origin for production
 
-
-const lobbies = {}; // Map lobbyCode → { players: [...] }
-const lobbyMessages = {}; // { lobbyCode: [messages] }
-
+const lobbies = {}; // lobbyCode -> { players: [...] }
+const lobbyMessages = {}; // lobbyCode -> [messages]
+let revealCount = {}; // lobbyCode -> number of reveals done
 
 io.on('connection', (socket) => {
+  // Create Lobby
   socket.on('createLobby', ({ lobbyCode, player }) => {
-    // Initialize lobby if doesn't exist
     if (!lobbies[lobbyCode]) {
       lobbies[lobbyCode] = { players: [] };
     }
-    // Add host player if not already in list
-    if (!lobbies[lobbyCode].players.some(p => p.name === player.name)) {
+    if (!lobbies[lobbyCode].players.some(p => p.id === player.id)) {
+      // Assign default role if missing
+      if (!player.role) player.role = 'Agent';
       lobbies[lobbyCode].players.push(player);
     }
-
     socket.join(lobbyCode);
     io.to(lobbyCode).emit('lobbyUpdate', lobbies[lobbyCode]);
   });
 
+  // Join Lobby
+  socket.on('joinLobby', ({ lobbyCode, player }) => {
+    if (!lobbies[lobbyCode]) {
+      lobbies[lobbyCode] = { players: [] };
+    }
+    if (!lobbies[lobbyCode].players.some(p => p.id === player.id)) {
+      if (!player.role) player.role = 'Agent';
+      lobbies[lobbyCode].players.push(player);
+    }
+    socket.join(lobbyCode);
+    io.to(lobbyCode).emit('lobbyUpdate', lobbies[lobbyCode]);
+  });
 
+  // Leave Lobby
+  socket.on('leaveLobby', ({ lobbyCode, playerId }) => {
+    if (lobbies[lobbyCode]) {
+      lobbies[lobbyCode].players = lobbies[lobbyCode].players.filter(p => p.id !== playerId);
+      io.to(lobbyCode).emit('lobbyUpdate', lobbies[lobbyCode]);
+    }
+    socket.leave(lobbyCode);
+  });
+
+  // Player Movement
   socket.on('playerMove', ({ lobbyCode, player, coordinates }) => {
     const lobby = lobbies[lobbyCode];
     if (lobby) {
@@ -29,16 +51,13 @@ io.on('connection', (socket) => {
       if (idx !== -1) {
         lobby.players[idx].coordinates = coordinates;
 
-        // Emit only the moved player's data, if you want per-player logs
         io.to(lobbyCode).emit('playerMoved', {
           player: lobby.players[idx],
           coordinates
         });
 
-        // Optional: or broadcast the whole updated list
         io.to(lobbyCode).emit('lobbyUpdate', lobby);
 
-        // For server debug, log all player coordinates
         console.log(
           lobby.players.map(p => ({
             id: p.id,
@@ -50,75 +69,46 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Start Game: Emit Roles and after delay emit goToGame
   socket.on('startGame', ({ lobbyCode }) => {
     const lobby = lobbies[lobbyCode];
     if (lobby) {
-      // Emit roles to reveal
+      // Assign default role if missing
+      lobby.players.forEach(p => { if (!p.role) p.role = 'Agent'; });
+
       io.to(lobbyCode).emit('revealRoles', {
         roles: lobby.players.map(p => ({ id: p.id, role: p.role })),
       });
 
-      // After 3 seconds, emit goToGame
       setTimeout(() => {
         io.to(lobbyCode).emit('goToGame');
       }, 3000);
     }
   });
 
+  // Reveal Done: Track reveal progress & notify when all done
+  socket.on('revealDone', ({ lobbyCode }) => {
+    revealCount[lobbyCode] = (revealCount[lobbyCode] || 0) + 1;
+    const lobby = lobbies[lobbyCode];
+    if (lobby && revealCount[lobbyCode] === lobby.players.length) {
+      io.to(lobbyCode).emit('goToGame');
+      revealCount[lobbyCode] = 0; // reset count
+    }
+  });
 
-  // When reveal animation is over on each client, they notify server, server tracks and syncs transition to game
-  let revealCount = {}; // { lobbyCode: number }
- 
-    socket.on('revealDone', ({ lobbyCode }) => {
-      revealCount[lobbyCode] = (revealCount[lobbyCode] || 0) + 1;
-      if (revealCount[lobbyCode] === lobbies[lobbyCode].players.length) {
-        // All players finished reveal; let everyone proceed
-        io.to(lobbyCode).emit('goToGame');
-        revealCount[lobbyCode] = 0; // Reset for next game
-      }
-    });
-
-
-
-  socket.on("chatMessage", (msg) => {
+  // Chat: Receive and broadcast messages, save per lobby
+  socket.on('chatMessage', (msg) => {
     if (!msg.lobbyCode) return;
-    // Save to messages array (optional: limit message array length per lobby)
-    lobbyMessages[msg.lobbyCode] = (lobbyMessages[msg.lobbyCode] || []).concat([
-      {
-        sender: msg.sender,
-        text: msg.text,
-        timestamp: msg.timestamp || Date.now()
-      }
-    ]);
-    // Broadcast new message
-    io.to(msg.lobbyCode).emit("chatMessage", msg);
+    lobbyMessages[msg.lobbyCode] = (lobbyMessages[msg.lobbyCode] || []).concat([{
+      sender: msg.sender,
+      text: msg.text,
+      timestamp: msg.timestamp || Date.now(),
+    }]);
+    io.to(msg.lobbyCode).emit('chatMessage', msg);
   });
 
-  // Serve previous messages on join
-  socket.on("getPreviousMessages", ({ lobbyCode }) => {
-    socket.emit("previousMessages", lobbyMessages[lobbyCode] || []);
+  // Serve Previous Messages on Request
+  socket.on('getPreviousMessages', ({ lobbyCode }) => {
+    socket.emit('previousMessages', lobbyMessages[lobbyCode] || []);
   });
-
-
- socket.on('joinLobby', ({ lobbyCode, player }) => {
-  if (!lobbies[lobbyCode]) lobbies[lobbyCode] = { players: [] };
-
-  if (!lobbies[lobbyCode].players.some(p => p.id === player.id)) {
-    lobbies[lobbyCode].players.push(player);
-  }
-  socket.join(lobbyCode);
-  io.to(lobbyCode).emit('lobbyUpdate', lobbies[lobbyCode]);
-});
-
-socket.on('leaveLobby', ({ lobbyCode, playerId }) => {
-  if (lobbies[lobbyCode]) {
-    lobbies[lobbyCode].players = lobbies[lobbyCode].players.filter(
-      p => p.id !== playerId
-    );
-    io.to(lobbyCode).emit('lobbyUpdate', lobbies[lobbyCode]);
-  }
-  socket.leave(lobbyCode);
-});
-
-
 });
