@@ -75,6 +75,7 @@ io.on('connection', (socket) => {
     // --- Assign roles and tasks (can be random or by logic) ---
     const roles = ['Leader', 'Agent', 'Spy', 'Medic']; // Example roles
     const tasks = ['Find the code', 'Secure the vault', 'Intercept the spy', 'Heal a teammate'];
+    assignRolesAndTasks(lobbyCode);
 
     // Shuffle roles/tasks or assign however you want
     lobby.players.forEach((p, i) => {
@@ -107,6 +108,25 @@ io.on('connection', (socket) => {
       revealCount[lobbyCode] = 0; // reset count
     }
   });
+
+  // Example: assign roles and tasks to all players
+function assignRolesAndTasks(lobbyCode) {
+  // 1. Make sure lobby exists:
+  const lobby = lobbies[lobbyCode];
+  if (!lobby) return;
+  
+  // 2. Do the assignment (this is a basic mock, replace with your logic):
+  const roles = lobby.players.map((player, idx) => ({
+    id: player.id,
+    name: player.name,
+    role: idx === 0 ? "Spy" : "Agent",
+    task: idx === 0 ? "Steal files" : "Protect the room"
+  }));
+
+  // 3. Send 'revealRoles' event to all in the room:
+  io.to(lobbyCode).emit('revealRoles', { roles });
+}
+
 
   // Chat: Receive and broadcast messages, save per lobby
   socket.on('chatMessage', (msg) => {
